@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Jurassic International</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Cabin:wght@400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --green-bright:  #8ed456;
+      --green-mid:     #7ac84a;
+      --green-muted:   #4a8a3a;
+      --green-dim:     #3a6030;
+      --green-dark:    #254520;
+      --green-darker:  #1e3a18;
+      --green-deep:    #172e12;
+      --bg-page:       #091408;
+      --bg-header:     #06100a;
+      --bg-card:       #0d1e0a;
+      --bg-footer:     #040c03;
+      --text-primary:  #d4f0b8;
+      --text-secondary:#c0e09a;
+      --text-muted:    #4a8a3a;
+      --text-faint:    #2a4a22;
+    }
+
+    html, body {
+      min-height: 100%;
+      background: var(--bg-page);
+      color: var(--text-primary);
+      font-family: 'Cabin', sans-serif;
+    }
+
+    /* ─── PAGE LAYOUT ─── */
+    .page {
+      max-width: 860px;
+      margin: 0 auto;
+      padding: 0 20px 60px;
+    }
+
+    /* ─── HEADER ─── */
+    header {
+      position: relative;
+      background: var(--bg-header);
+      text-align: center;
+      padding: 0 0 32px;
+      border-bottom: 1px solid var(--green-darker);
+      overflow: hidden;
+      margin: 0 -20px;
+    }
+
+    .canopy {
+      width: 100%;
+      display: block;
+      margin-bottom: 22px;
+    }
+
+    .eyebrow {
+      font-size: 10px;
+      letter-spacing: 4px;
+      color: var(--green-muted);
+      font-weight: 500;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+
+    h1 {
+      font-family: 'Cinzel', serif;
+      font-size: clamp(26px, 6vw, 42px);
+      font-weight: 700;
+      color: var(--text-primary);
+      letter-spacing: 1px;
+      line-height: 1.1;
+      margin-bottom: 8px;
+      text-shadow: 0 0 50px rgba(100,200,60,0.15);
+    }
+
+    h1 span { color: var(--green-bright); }
+
+    .tagline {
+      font-size: 13px;
+      color: var(--green-dim);
+      letter-spacing: 0.5px;
+    }
+
+    /* ─── MAIN BODY ─── */
+    main {
+      padding-top: 36px;
+    }
+
+    .section-label {
+      font-size: 10px;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: var(--text-faint);
+      font-weight: 500;
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .section-label::before,
+    .section-label::after {
+      content: '';
+      flex: 1;
+      height: 0.5px;
+      background: var(--green-darker);
+    }
+
+    /* ─── GAME GRID ─── */
+    .game-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+      gap: 16px;
+    }
+
+    /* ─── GAME CARD ─── */
+    .game-card {
+      background: var(--bg-card);
+      border: 0.5px solid var(--green-dark);
+      border-radius: 10px;
+      overflow: hidden;
+      text-decoration: none;
+      display: block;
+      transition: border-color 0.2s, transform 0.2s;
+    }
+
+    .game-card:hover {
+      border-color: var(--green-mid);
+      transform: translateY(-3px);
+    }
+
+    /* Thumbnail */
+    .thumb {
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      position: relative;
+      overflow: hidden;
+      background: #081006;
+    }
+
+    .thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    /* Canvas placeholder (shown when no screenshot) */
+    .thumb canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .thumb-overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      opacity: 0;
+      background: rgba(4, 9, 3, 0.45);
+      transition: opacity 0.2s;
+    }
+
+    .game-card:hover .thumb-overlay { opacity: 1; }
+
+    .play-btn {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: rgba(142, 212, 86, 0.18);
+      border: 1px solid rgba(142, 212, 86, 0.5);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .play-triangle {
+      width: 0; height: 0;
+      border-style: solid;
+      border-width: 7px 0 7px 13px;
+      border-color: transparent transparent transparent var(--green-bright);
+      margin-left: 3px;
+    }
+
+    .thumb-play-label {
+      font-size: 11px;
+      color: rgba(212, 240, 184, 0.8);
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      font-weight: 500;
+    }
+
+    /* Card info strip */
+    .card-info {
+      padding: 11px 14px 13px;
+      border-top: 0.5px solid #1a3016;
+    }
+
+    .card-num {
+      font-size: 9px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: var(--text-faint);
+      margin-bottom: 3px;
+    }
+
+    .card-title {
+      font-family: 'Cinzel', serif;
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-secondary);
+    }
+
+    /* ─── COMING SOON CARD ─── */
+    .card-soon {
+      background: transparent;
+      border: 0.5px dashed var(--green-darker);
+      border-radius: 10px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      min-height: 140px;
+      color: var(--text-faint);
+    }
+
+    .soon-egg {
+      font-size: 28px;
+      animation: wobble 3s ease-in-out infinite;
+    }
+
+    .soon-text {
+      font-size: 11px;
+      letter-spacing: 1px;
+      color: #2e4e26;
+    }
+
+    @keyframes wobble {
+      0%, 100% { transform: rotate(-5deg); }
+      50%       { transform: rotate(5deg); }
+    }
+
+    /* ─── FOOTER ─── */
+    footer {
+      margin: 0 -20px 0;
+      background: var(--bg-footer);
+      border-top: 0.5px solid var(--green-deep);
+      padding: 14px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11px;
+      color: var(--text-faint);
+      margin-top: 48px;
+    }
+
+    .live-badge {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+    }
+
+    .live-dot {
+      width: 6px; height: 6px;
+      background: #5ab840;
+      border-radius: 50%;
+      box-shadow: 0 0 6px #5ab840;
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.35; }
+    }
+
+    /* ─── RESPONSIVE ─── */
+    @media (max-width: 480px) {
+      .game-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+      footer { flex-direction: column; gap: 6px; text-align: center; }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <!-- Jungle canopy SVG -->
+    <svg class="canopy" viewBox="0 0 1200 110" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMax slice">
+      <rect width="1200" height="110" fill="#04090a"/>
+      <!-- Back layer -->
+      <ellipse cx="100"  cy="20" rx="140" ry="34" fill="#0d2a10" transform="rotate(-18,100,20)"/>
+      <ellipse cx="310"  cy="10" rx="160" ry="26" fill="#0a2208" transform="rotate(8,310,10)"/>
+      <ellipse cx="580"  cy="6"  rx="175" ry="30" fill="#0d2a10" transform="rotate(-5,580,6)"/>
+      <ellipse cx="860"  cy="14" rx="150" ry="24" fill="#0a2208" transform="rotate(10,860,14)"/>
+      <ellipse cx="1100" cy="10" rx="155" ry="28" fill="#0d2a10" transform="rotate(-12,1100,10)"/>
+      <!-- Mid layer -->
+      <path d="M0 38 Q70 0 140 30 Q105 60 0 65 Z"        fill="#173d14"/>
+      <path d="M1060 32 Q1130 0 1200 36 Q1165 62 1060 65 Z" fill="#173d14"/>
+      <path d="M210 12 Q295 -12 380 18 Q345 52 205 54 Z"  fill="#163a12"/>
+      <path d="M790 10 Q875 -10 960 22 Q920 48 785 50 Z"  fill="#163a12"/>
+      <path d="M475 2 Q565 -16 655 10 Q610 46 470 44 Z"   fill="#1a4216"/>
+      <!-- Front layer -->
+      <path d="M0 58 Q52 24 102 54 L70 110 L0 110 Z"       fill="#1f5019"/>
+      <path d="M1098 56 Q1150 22 1200 58 L1200 110 L1098 110 Z" fill="#1f5019"/>
+      <path d="M138 50 Q207 14 268 48 Q242 84 130 86 Z"   fill="#1c4a16"/>
+      <path d="M910 48 Q978 12 1030 50 Q1005 80 905 80 Z" fill="#1c4a16"/>
+      <path d="M445 36 Q515 4 585 38 Q552 74 438 72 Z"    fill="#204f1a"/>
+      <!-- Vines -->
+      <line x1="78"  y1="0" x2="92"  y2="110" stroke="#163214" stroke-width="2"   opacity="0.65"/>
+      <line x1="340" y1="0" x2="332" y2="110" stroke="#163214" stroke-width="1.5" opacity="0.5"/>
+      <line x1="620" y1="0" x2="610" y2="110" stroke="#163214" stroke-width="1.8" opacity="0.6"/>
+      <line x1="900" y1="0" x2="892" y2="110" stroke="#163214" stroke-width="1.5" opacity="0.5"/>
+      <line x1="1130" y1="0" x2="1120" y2="110" stroke="#163214" stroke-width="1.6" opacity="0.55"/>
+      <!-- Fade to bg -->
+      <defs>
+        <linearGradient id="cfade" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stop-color="#04090a" stop-opacity="0"/>
+          <stop offset="100%" stop-color="#06100a" stop-opacity="1"/>
+        </linearGradient>
+      </defs>
+      <rect width="1200" height="50" y="60" fill="url(#cfade)"/>
+    </svg>
+
+    <p class="eyebrow">— Game Hub —</p>
+    <h1><span>Jurassic</span> International</h1>
+    <p class="tagline">Dinosaur games, built by kids</p>
+  </header>
+
+  <div class="page">
+    <main>
+      <p class="section-label">Games</p>
+
+      <div class="game-grid">
+
+        <!--
+          ═══════════════════════════════════════════════════════
+          GAME CARD — T-Rex Dash
+          To add more games, copy this block and update:
+            • href         → path to the game folder  e.g. "./raptor-run/"
+            • data-game    → unique id for the canvas placeholder
+            • .card-num    → Game 02, 03 …
+            • .card-title  → game name
+          To swap the placeholder for a real screenshot:
+            • Remove the <canvas> element
+            • Add: <img src="./t-rex-dash/screenshot.png" alt="T-Rex Dash screenshot">
+          ═══════════════════════════════════════════════════════
+        -->
+        <a class="game-card" href="./t-rex-dash/" data-game="trex">
+          <div class="thumb">
+            <canvas data-placeholder="trex"></canvas>
+            <div class="thumb-overlay">
+              <div class="play-btn"><div class="play-triangle"></div></div>
+              <span class="thumb-play-label">Play</span>
+            </div>
+          </div>
+          <div class="card-info">
+            <p class="card-num">Game 01</p>
+            <p class="card-title">T-Rex Dash</p>
+          </div>
+        </a>
+
+        <!-- Coming soon slot (remove this once you add a second game) -->
+        <div class="card-soon">
+          <div class="soon-egg">🥚</div>
+          <p class="soon-text">Next game hatching...</p>
+        </div>
+
+      </div>
+    </main>
+
+    <footer>
+      <div class="live-badge">
+        <div class="live-dot"></div>
+        <span id="game-count">1 game live</span>
+      </div>
+      <span>jurassic-international.netlify.app</span>
+    </footer>
+  </div>
+
+  <script>
+    // ─── Thumbnail placeholder renderer ───────────────────────────────────────
+    // Draws a moody jungle scene on each card that has data-placeholder.
+    // Replace with a real <img> screenshot whenever you have one.
+
+    function drawTRexScene(canvas) {
+      const W = canvas.offsetWidth  || canvas.parentElement.offsetWidth  || 320;
+      const H = canvas.offsetHeight || canvas.parentElement.offsetHeight || 180;
+      canvas.width  = W;
+      canvas.height = H;
+      const ctx = canvas.getContext('2d');
+
+      // Sky
+      const sky = ctx.createLinearGradient(0, 0, 0, H);
+      sky.addColorStop(0, '#030e08');
+      sky.addColorStop(1, '#0a1e10');
+      ctx.fillStyle = sky;
+      ctx.fillRect(0, 0, W, H);
+
+      // Moon
+      ctx.beginPath();
+      ctx.arc(W * 0.78, H * 0.22, 11, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(180,230,140,0.18)';
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(W * 0.78, H * 0.22, 7, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(200,240,160,0.1)';
+      ctx.fill();
+
+      // Back tree silhouettes
+      ctx.fillStyle = '#071408';
+      for (let i = 0; i < 8; i++) {
+        const x = (i / 7) * W * 1.1 - W * 0.05;
+        const h = H * (0.42 + Math.sin(i * 2.1) * 0.1);
+        const w = W * 0.04;
+        ctx.beginPath();
+        ctx.moveTo(x, H * 0.74);
+        ctx.lineTo(x - w, H * 0.74);
+        ctx.lineTo(x - w * 0.5, H * 0.74 - h * 0.45);
+        ctx.lineTo(x - w * 1.1, H * 0.74 - h * 0.45);
+        ctx.lineTo(x, H * 0.74 - h);
+        ctx.lineTo(x + w * 1.1, H * 0.74 - h * 0.45);
+        ctx.lineTo(x + w * 0.5, H * 0.74 - h * 0.45);
+        ctx.lineTo(x + w, H * 0.74);
+        ctx.closePath();
+        ctx.fill();
+      }
+
+      // Ground
+      const ground = ctx.createLinearGradient(0, H * 0.73, 0, H);
+      ground.addColorStop(0, '#0f2a0a');
+      ground.addColorStop(1, '#040c03');
+      ctx.fillStyle = ground;
+      ctx.fillRect(0, H * 0.73, W, H);
+
+      // Ground accent line
+      ctx.strokeStyle = 'rgba(80,160,40,0.28)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(0, H * 0.73);
+      ctx.lineTo(W, H * 0.73);
+      ctx.stroke();
+
+      // Dashed run track
+      ctx.strokeStyle = 'rgba(60,120,30,0.18)';
+      ctx.lineWidth = 0.8;
+      ctx.setLineDash([9, 10]);
+      ctx.beginPath();
+      ctx.moveTo(0, H * 0.83);
+      ctx.lineTo(W, H * 0.83);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // T-Rex silhouette
+      const tx = W * 0.28;
+      const ty = H * 0.73;
+      const s  = H * 0.28;
+      ctx.fillStyle   = '#1e4a12';
+      ctx.strokeStyle = '#1e4a12';
+
+      // Body
+      ctx.beginPath();
+      ctx.ellipse(tx, ty - s * 0.38, s * 0.22, s * 0.18, -0.2, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Head
+      ctx.beginPath();
+      ctx.ellipse(tx + s * 0.23, ty - s * 0.65, s * 0.15, s * 0.1, 0.3, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Neck fill
+      ctx.beginPath();
+      ctx.moveTo(tx + s * 0.08, ty - s * 0.52);
+      ctx.lineTo(tx + s * 0.2,  ty - s * 0.56);
+      ctx.lineTo(tx + s * 0.24, ty - s * 0.55);
+      ctx.lineTo(tx + s * 0.13, ty - s * 0.46);
+      ctx.closePath();
+      ctx.fill();
+
+      // Legs
+      ctx.fillRect(tx - s * 0.07, ty - s * 0.2, s * 0.09, s * 0.2);
+      ctx.fillRect(tx + s * 0.06, ty - s * 0.2, s * 0.09, s * 0.2);
+
+      // Tail
+      ctx.beginPath();
+      ctx.moveTo(tx - s * 0.18, ty - s * 0.38);
+      ctx.quadraticCurveTo(tx - s * 0.44, ty - s * 0.18, tx - s * 0.5, ty - s * 0.08);
+      ctx.lineWidth   = s * 0.08;
+      ctx.lineCap     = 'round';
+      ctx.stroke();
+
+      // Speed lines
+      ctx.strokeStyle = 'rgba(100,200,50,0.13)';
+      ctx.lineWidth   = 0.8;
+      ctx.setLineDash([14, 10]);
+      for (let i = 0; i < 3; i++) {
+        const ly = H * (0.55 + i * 0.055);
+        ctx.beginPath();
+        ctx.moveTo(0, ly);
+        ctx.lineTo(tx - s * 0.58, ly);
+        ctx.stroke();
+      }
+      ctx.setLineDash([]);
+
+      // Obstacle rock
+      ctx.fillStyle = '#122808';
+      ctx.beginPath();
+      ctx.ellipse(W * 0.66, H * 0.73, s * 0.11, s * 0.09, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Vignette
+      const vig = ctx.createRadialGradient(W / 2, H / 2, H * 0.18, W / 2, H / 2, H * 0.82);
+      vig.addColorStop(0, 'rgba(0,0,0,0)');
+      vig.addColorStop(1, 'rgba(0,0,0,0.55)');
+      ctx.fillStyle = vig;
+      ctx.fillRect(0, 0, W, H);
+    }
+
+    // Dispatch the right drawing function based on data-placeholder value.
+    // Add new cases here as you add new games with custom placeholder art.
+    function renderPlaceholder(canvas) {
+      const type = canvas.dataset.placeholder;
+      if (type === 'trex') drawTRexScene(canvas);
+      // e.g. if (type === 'raptor') drawRaptorScene(canvas);
+    }
+
+    // Render all placeholder canvases once fonts + layout are ready
+    window.addEventListener('load', function () {
+      document.querySelectorAll('canvas[data-placeholder]').forEach(renderPlaceholder);
+    });
+
+    // ─── Live game count ───────────────────────────────────────────────────────
+    // Auto-counts real game cards (excludes the coming-soon slot).
+    const gameCount = document.querySelectorAll('.game-card').length;
+    document.getElementById('game-count').textContent =
+      gameCount === 1 ? '1 game live' : gameCount + ' games live';
+  </script>
+
+</body>
+</html>
