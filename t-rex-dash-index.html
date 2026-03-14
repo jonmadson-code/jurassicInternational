@@ -192,7 +192,7 @@
         <div id="modeDisplay" class="text-emerald-400 font-black">TUTORIAL</div>
         <div>T-REX COUNT: <span id="dinoCount">0</span></div>
         <div class="text-yellow-400">FRUIT: <span id="ammoVal">0</span></div>
-        <div id="goldAmmoIndicator" class="text-amber-300 font-black hidden">🌟 GOLDEN SEEKER READY 🌟</div>
+        <div id="goldAmmoIndicator" class="text-amber-300 font-black hidden">🌟 GOLDEN x<span id="goldAmmoCount">0</span> 🌟</div>
     </div>
 
     <div id="move-joystick" class="joystick-base" style="opacity:0">
@@ -475,6 +475,12 @@
 
     function updateHeartsUI() { heartsEl.innerText = "❤️".repeat(lives); }
 
+    function updateGoldAmmoUI() {
+        document.getElementById('goldAmmoCount').innerText = goldAmmo;
+        if (goldAmmo > 0) goldIndicator.classList.remove('hidden');
+        else goldIndicator.classList.add('hidden');
+    }
+
     function spawnDino(isGuard = false) {
         const side = Math.floor(Math.random() * 4);
         let x, y;
@@ -508,6 +514,7 @@
     }
 
     function triggerLevelTransition() {
+        gameState = 'WON';
         menuContent.classList.add('hidden');
         resultContent.classList.remove('hidden');
         overlay.style.display = 'flex';
@@ -593,7 +600,7 @@
             lastFireTime = Date.now();
             const angle = Math.atan2(aimJoy.moveY, aimJoy.moveX);
             if (goldAmmo > 0) {
-                goldAmmo--; if (goldAmmo === 0) goldIndicator.classList.add('hidden');
+                goldAmmo--; updateGoldAmmoUI();
                 projectiles.push({ x: player.x, y: player.y, vx: Math.cos(angle)*12, vy: Math.sin(angle)*12, radius: 12, isGolden: true });
             } else {
                 ammo--; ammoVal.innerText = ammo;
@@ -611,49 +618,55 @@
                 if (boss.hp <= 0) { createParticles(boss.x, boss.y, '#2e1065', 50); boss = null; updateEnemyCount(); }
                 continue;
             }
+            let hitDino = false;
             for (let j = dinos.length - 1; j >= 0; j--) {
                 let d = dinos[j]; if (d.isAlly) continue;
                 if (Math.hypot(p.x - d.x, p.y - d.y) < p.radius + d.radius) {
-                    if (p.isGolden) { 
-                        d.isAlly = true; d.radius = 35; d.speed *= 1.4; d.hue = 50; 
+                    if (p.isGolden) {
+                        d.isAlly = true; d.radius = 35; d.speed *= 1.4; d.hue = 50;
                         createParticles(d.x, d.y, '#fbbf24', 15);
                     }
                     else {
                         createParticles(d.x, d.y, `hsl(${d.hue}, 60%, 40%)`, 15);
                         dinos.splice(j, 1);
                     }
-                    projectiles.splice(i, 1); updateEnemyCount(); break;
+                    projectiles.splice(i, 1); updateEnemyCount(); hitDino = true; break;
                 }
             }
-            if (p && (p.x < -100 || p.x > width+100 || p.y < -100 || p.y > height+100)) projectiles.splice(i, 1);
+            if (!hitDino && (p.x < -100 || p.x > width+100 || p.y < -100 || p.y > height+100)) projectiles.splice(i, 1);
         }
 
+        const dinosToRemove = [];
         dinos.forEach((d) => {
-            let target = d.isAlly ? (boss || dinos.find(e => !e.isAlly)) : player;
+            let target = d.isAlly ? (boss || dinos.find(e => !e.isAlly && e !== d)) : player;
             if (target) {
                 const angle = Math.atan2(target.y - d.y, target.x - d.x);
                 d.x += Math.cos(angle) * d.speed; d.y += Math.sin(angle) * d.speed;
                 if (Math.hypot(d.x - target.x, d.y - target.y) < d.radius + target.radius - 10) {
                     if (d.isAlly) {
                         if (target === boss) { boss.hp -= 0.03; updateBossHP(); if(boss.hp <= 0){ createParticles(boss.x, boss.y, '#2e1065', 50); boss=null;updateEnemyCount();}}
-                        else { 
+                        else if (!dinosToRemove.includes(target)) {
                             createParticles(target.x, target.y, `hsl(${target.hue}, 60%, 40%)`, 10);
-                            dinos.splice(dinos.indexOf(target), 1); 
-                            updateEnemyCount(); 
+                            dinosToRemove.push(target);
                         }
                     } else takeDamage();
                 }
             }
         });
+        if (dinosToRemove.length > 0) {
+            dinos = dinos.filter(d => !dinosToRemove.includes(d));
+            updateEnemyCount();
+        }
 
-        fruits.forEach((f, i) => {
+        for (let i = fruits.length - 1; i >= 0; i--) {
+            const f = fruits[i];
             if (Math.hypot(f.x - player.x, f.y - player.y) < f.radius + player.radius) {
                 fruits.splice(i, 1);
-                if (f.isGolden) { goldAmmo++; goldIndicator.classList.remove('hidden'); }
+                if (f.isGolden) { goldAmmo++; updateGoldAmmoUI(); }
                 else { ammo += 5; ammoVal.innerText = ammo; }
                 spawnFruit();
             }
-        });
+        }
 
         for (let i = particles.length - 1; i >= 0; i--) {
             let p = particles[i];
@@ -671,7 +684,7 @@
         const bob = Math.abs(Math.cos(time * 6)) * 4;
         
         ctx.save(); ctx.translate(d.x, d.y);
-        ctx.rotate(Math.atan2((d.isAlly ? (boss?.y || d.y) : player.y) - d.y, (d.isAlly ? (boss?.x || d.x) : player.x) - d.x));
+        ctx.rotate(Math.atan2((d.isAlly ? (boss?.y ?? d.y) : player.y) - d.y, (d.isAlly ? (boss?.x ?? d.x) : player.x) - d.x));
         
         const baseColor = d.isBoss ? '#2e1065' : (d.isGuard ? '#1e1b4b' : `hsl(${d.hue}, 60%, 35%)`);
         const shadowColor = d.isBoss ? '#1e0a45' : `hsl(${d.hue}, 40%, 15%)`;
