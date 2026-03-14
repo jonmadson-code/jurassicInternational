@@ -1,0 +1,804 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Jungle Dash: T-Rex Terror</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: #052e16;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            touch-action: none;
+            user-select: none;
+        }
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            background: #143216;
+        }
+        canvas {
+            display: block;
+        }
+        .stats {
+            position: absolute;
+            top: env(safe-area-inset-top, 20px);
+            left: 20px;
+            color: #fef3c7;
+            font-size: 18px;
+            font-weight: bold;
+            text-shadow: 2px 2px 0px rgba(0,0,0,0.8);
+            pointer-events: none;
+            z-index: 5;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .hearts-container {
+            display: flex;
+            gap: 4px;
+            font-size: 24px;
+        }
+        .joystick-base {
+            position: absolute;
+            bottom: 40px;
+            width: 100px;
+            height: 100px;
+            background: rgba(0, 0, 0, 0.4);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(4px);
+            border-radius: 50%;
+            pointer-events: auto;
+            touch-action: none;
+            transition: opacity 0.5s;
+        }
+        #move-joystick { left: 40px; }
+        #aim-joystick { right: 40px; }
+        
+        .joystick-knob {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 44px;
+            height: 44px;
+            background: rgba(255, 255, 255, 0.9);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+        }
+        #aim-joystick .joystick-knob { background: #fbbf24; }
+
+        #msg-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(10, 25, 10, 0.95);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            pointer-events: auto;
+            z-index: 100;
+            transition: all 0.8s ease;
+        }
+        
+        #msg-overlay.final-ending {
+            background: radial-gradient(circle, #166534 0%, #064e3b 100%) !important;
+        }
+
+        .btn {
+            background: #059669;
+            padding: 12px 30px;
+            border-radius: 50px;
+            font-size: 20px;
+            margin-top: 10px;
+            cursor: pointer;
+            border: none;
+            color: white;
+            font-weight: bold;
+            box-shadow: 0 4px 0 #064e3b;
+            z-index: 110;
+            min-width: 200px;
+            text-align: center;
+        }
+        .btn:active { transform: translateY(2px); box-shadow: 0 2px 0 #064e3b; }
+        
+        .level-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin-top: 20px;
+        }
+        .level-btn {
+            background: #1e4620;
+            border: 2px solid #059669;
+            padding: 15px;
+            border-radius: 12px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            position: relative;
+            overflow: hidden;
+        }
+        .level-btn:not(.locked):hover { background: #059669; transform: scale(1.05); }
+        .level-btn.locked { 
+            opacity: 0.4; 
+            cursor: not-allowed; 
+            border-color: #334139; 
+            filter: grayscale(1);
+        }
+        .level-btn .lock-icon {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 24px;
+            display: none;
+        }
+        .level-btn.locked .lock-icon { display: block; }
+
+        #boss-hp-bar {
+            position: absolute;
+            top: 80px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80%;
+            height: 12px;
+            background: #451a03;
+            border: 3px solid #fbbf24;
+            display: none;
+            z-index: 20;
+            border-radius: 6px;
+        }
+        #boss-hp-fill {
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, #ef4444, #f87171);
+            transition: width 0.3s ease;
+        }
+
+        .victory-float {
+            animation: float 3s ease-in-out infinite;
+        }
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-20px); }
+        }
+
+        .crown-icon {
+            font-size: 80px;
+            margin-bottom: 20px;
+            filter: drop-shadow(0 0 15px #fbbf24);
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <canvas id="gameCanvas"></canvas>
+    
+    <div id="boss-hp-bar"><div id="boss-hp-fill"></div></div>
+
+    <div class="stats" id="ui-stats" style="display:none">
+        <div id="hearts" class="hearts-container">❤️❤️❤️</div>
+        <div id="modeDisplay" class="text-emerald-400 font-black">TUTORIAL</div>
+        <div>T-REX COUNT: <span id="dinoCount">0</span></div>
+        <div class="text-yellow-400">FRUIT: <span id="ammoVal">0</span></div>
+        <div id="goldAmmoIndicator" class="text-amber-300 font-black hidden">🌟 GOLDEN SEEKER READY 🌟</div>
+    </div>
+
+    <div id="move-joystick" class="joystick-base" style="opacity:0">
+        <div id="move-knob" class="joystick-knob"></div>
+    </div>
+
+    <div id="aim-joystick" class="joystick-base" style="opacity:0">
+        <div id="aim-knob" class="joystick-knob"></div>
+    </div>
+    
+    <div id="msg-overlay">
+        <div id="crown-box" class="crown-icon hidden">👑</div>
+        <h1 id="msg-title" class="text-6xl font-black mb-2 tracking-tighter text-emerald-400 text-center">T-REX DASH</h1>
+        <p id="msg-desc" class="text-center px-12 text-lg opacity-90 max-w-md mb-4">
+            Dodge the tiny arms. Slay the Great King.
+        </p>
+        
+        <div id="menu-content" class="flex flex-col items-center">
+            <button id="tutorialBtn" class="btn bg-blue-600 shadow-blue-900 mb-4" onclick="initTutorial()">PLAY TUTORIAL</button>
+            <div id="levelGrid" class="level-grid"></div>
+            <button id="bossBtn" class="btn bg-red-800 shadow-red-950 mt-4 hidden" onclick="startLevel(5)">⚠️ CHALLENGE THE KING ⚠️</button>
+            <button id="rematchBtn" class="btn bg-purple-700 shadow-purple-950 mt-4 hidden" onclick="startLevel(6)">🔥 BOSS REMATCH 🔥</button>
+        </div>
+
+        <div id="result-content" class="hidden flex flex-col items-center">
+            <button id="mainBtn" class="btn">CONTINUE</button>
+            <button id="homeBtn" class="btn bg-gray-700 shadow-gray-900" onclick="showHomeScreen()">HOME SCREEN</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const ammoVal = document.getElementById('ammoVal');
+    const dinoCountEl = document.getElementById('dinoCount');
+    const heartsEl = document.getElementById('hearts');
+    const modeDisplay = document.getElementById('modeDisplay');
+    const overlay = document.getElementById('msg-overlay');
+    const msgTitle = document.getElementById('msg-title');
+    const msgDesc = document.getElementById('msg-desc');
+    const mainBtn = document.getElementById('mainBtn');
+    const moveJoyEl = document.getElementById('move-joystick');
+    const aimJoyEl = document.getElementById('aim-joystick');
+    const statsEl = document.getElementById('ui-stats');
+    const goldIndicator = document.getElementById('goldAmmoIndicator');
+    const menuContent = document.getElementById('menu-content');
+    const resultContent = document.getElementById('result-content');
+    const levelGrid = document.getElementById('levelGrid');
+    const bossHPBar = document.getElementById('boss-hp-bar');
+    const bossHPFill = document.getElementById('boss-hp-fill');
+    const crownBox = document.getElementById('crown-box');
+    const rematchBtn = document.getElementById('rematchBtn');
+    const bossBtn = document.getElementById('bossBtn');
+
+    let gameState = 'MENU';
+    let level = 1;
+    let ammo = 0;
+    let goldAmmo = 0;
+    let lives = 3;
+    let invulnTimer = 0;
+    let width, height;
+    let lastFireTime = 0;
+    let gameTime = 0;
+    const FIRE_RATE = 200;
+
+    let unlockedLevels = 1; 
+    let tutorialComplete = false;
+    let gameBeaten = false;
+
+    let player = { x: 0, y: 0, radius: 18, speed: 5 };
+    let dinos = [];
+    let fruits = [];
+    let projectiles = [];
+    let particles = [];
+    let boss = null;
+    let lastSummonTime = 0;
+
+    const moveJoy = { active: false, id: null, moveX: 0, moveY: 0, startX: 0, startY: 0 };
+    const aimJoy = { active: false, id: null, moveX: 0, moveY: 0, startX: 0, startY: 0 };
+
+    function saveProgress() {
+        localStorage.setItem('jungleDashProgress_v7', JSON.stringify({
+            unlocked: unlockedLevels,
+            tutorial: tutorialComplete,
+            beaten: gameBeaten
+        }));
+    }
+
+    function loadProgress() {
+        const saved = localStorage.getItem('jungleDashProgress_v7');
+        if (saved) {
+            const data = JSON.parse(saved);
+            unlockedLevels = data.unlocked || 1;
+            tutorialComplete = data.tutorial || false;
+            gameBeaten = data.beaten || false;
+        }
+    }
+
+    function resize() {
+        width = window.innerWidth;
+        height = window.innerHeight;
+        canvas.width = width;
+        canvas.height = height;
+    }
+
+    window.addEventListener('resize', resize);
+    resize();
+
+    function setupJoystick(el, state, knobEl) {
+        const handleStart = (e) => {
+            if (gameState !== 'PLAYING' && gameState !== 'TUTORIAL') return;
+            const touch = e.changedTouches ? e.changedTouches[0] : e;
+            state.active = true;
+            state.id = touch.identifier ?? 'mouse';
+            const rect = el.getBoundingClientRect();
+            state.startX = rect.left + rect.width / 2;
+            state.startY = rect.top + rect.height / 2;
+        };
+        const handleMove = (e) => {
+            if (!state.active) return;
+            const touches = e.changedTouches || [e];
+            let touch = touches[0];
+            for(let t of touches) if ((t.identifier ?? 'mouse') === state.id) touch = t;
+            const dx = touch.clientX - state.startX;
+            const dy = touch.clientY - state.startY;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            const maxDist = 50;
+            const angle = Math.atan2(dy, dx);
+            const clampedDist = Math.min(dist, maxDist);
+            state.moveX = (Math.cos(angle) * clampedDist) / maxDist;
+            state.moveY = (Math.sin(angle) * clampedDist) / maxDist;
+            knobEl.style.left = (50 + state.moveX * 40) + '%';
+            knobEl.style.top = (50 + state.moveY * 40) + '%';
+            if (e.cancelable) e.preventDefault();
+        };
+        const handleEnd = (e) => {
+            const touches = e.changedTouches || [e];
+            for(let t of touches) {
+                if ((t.identifier ?? 'mouse') === state.id) {
+                    state.active = false;
+                    state.id = null;
+                    state.moveX = 0; state.moveY = 0;
+                    knobEl.style.left = '50%'; knobEl.style.top = '50%';
+                }
+            }
+        };
+        el.addEventListener('touchstart', handleStart);
+        window.addEventListener('touchmove', handleMove, { passive: false });
+        window.addEventListener('touchend', handleEnd);
+        el.addEventListener('mousedown', handleStart);
+        window.addEventListener('mousemove', handleMove);
+        window.addEventListener('mouseup', handleEnd);
+    }
+
+    setupJoystick(moveJoyEl, moveJoy, document.getElementById('move-knob'));
+    setupJoystick(aimJoyEl, aimJoy, document.getElementById('aim-knob'));
+
+    function createParticles(x, y, color, count = 10) {
+        for (let i = 0; i < count; i++) {
+            particles.push({
+                x, y,
+                vx: (Math.random() - 0.5) * 8,
+                vy: (Math.random() - 0.5) * 8,
+                life: 1.0,
+                color,
+                size: 2 + Math.random() * 4
+            });
+        }
+    }
+
+    function renderLevelGrid() {
+        levelGrid.innerHTML = '';
+        for(let i=1; i<=4; i++) {
+            const isLocked = i > unlockedLevels;
+            const btn = document.createElement('div');
+            btn.className = `level-btn ${isLocked ? 'locked' : ''}`;
+            btn.innerHTML = `<div class="lock-icon">🔒</div><div class="level-text"><div class="text-xs opacity-70">SECTOR</div><div class="text-2xl font-bold">0${i}</div></div>`;
+            if (!isLocked) btn.onclick = () => startLevel(i);
+            levelGrid.appendChild(btn);
+        }
+        
+        if (gameBeaten) {
+            bossBtn.classList.add('hidden');
+            rematchBtn.classList.remove('hidden');
+        } else if (unlockedLevels >= 5) {
+            bossBtn.classList.remove('hidden');
+            rematchBtn.classList.add('hidden');
+        } else {
+            bossBtn.classList.add('hidden');
+            rematchBtn.classList.add('hidden');
+        }
+    }
+
+    function showHomeScreen() {
+        gameState = 'MENU';
+        loadProgress();
+        renderLevelGrid();
+        bossHPBar.style.display = 'none';
+        overlay.classList.remove('final-ending');
+        overlay.style.display = 'flex';
+        menuContent.classList.remove('hidden');
+        resultContent.classList.add('hidden');
+        crownBox.classList.add('hidden');
+        msgTitle.innerText = "T-REX DASH";
+        msgTitle.className = "text-6xl font-black mb-2 tracking-tighter text-emerald-400 text-center";
+        msgDesc.innerText = "Slay the King of Dinosaurs.";
+        moveJoyEl.style.opacity = '0';
+        aimJoyEl.style.opacity = '0';
+        statsEl.style.display = 'none';
+    }
+
+    function initTutorial() {
+        gameState = 'TUTORIAL';
+        level = 0; ammo = 0; goldAmmo = 0; lives = 3; invulnTimer = 0; boss = null;
+        updateHeartsUI();
+        dinos = []; fruits = []; projectiles = []; particles = [];
+        player.x = width / 2; player.y = height / 2;
+        overlay.style.display = 'none';
+        modeDisplay.innerText = 'TRAINING';
+        ammoVal.innerText = ammo;
+        moveJoyEl.style.opacity = '1';
+        aimJoyEl.style.opacity = '1';
+        statsEl.style.display = 'flex';
+        spawnFruitAt(width/2, height/2 - 150);
+        dinos.push({ x: width/2, y: height/2 + 150, radius: 25, speed: 0.2, hue: 150, isAlly: false, animOffset: Math.random() * 10 });
+        updateEnemyCount();
+    }
+
+    function startLevel(l) {
+        gameState = 'PLAYING';
+        level = l;
+        dinos = []; fruits = []; projectiles = []; particles = []; boss = null;
+        bossHPBar.style.display = 'none';
+        player.x = width / 2; player.y = height / 2;
+        ammo = (level >= 5) ? 20 : 15; goldAmmo = 0; lives = 3;
+        updateHeartsUI();
+        ammoVal.innerText = ammo;
+        goldIndicator.classList.add('hidden');
+        modeDisplay.innerText = level >= 5 ? 'LAIR OF THE KING' : 'SECTOR ' + level;
+        overlay.style.display = 'none';
+        moveJoyEl.style.opacity = '1';
+        aimJoyEl.style.opacity = '1';
+        statsEl.style.display = 'flex';
+        
+        if (level === 5) spawnBoss(false);
+        else if (level === 6) spawnBoss(true); 
+        else {
+            const count = [0, 5, 8, 12, 18][level] || 15;
+            for(let i=0; i < count; i++) spawnDino();
+            for(let i=0; i < 5; i++) spawnFruit();
+        }
+        updateEnemyCount();
+    }
+
+    function spawnBoss(isRematch) {
+        boss = { 
+            x: width / 2, 
+            y: -300, 
+            radius: 95, 
+            speed: isRematch ? 1.5 : 1.2, 
+            hp: isRematch ? 30 : 20, 
+            maxHp: isRematch ? 30 : 20, 
+            hue: 285, 
+            isBoss: true, 
+            targetY: height / 3,
+            hasCrown: true,
+            animOffset: 0
+        };
+        bossHPBar.style.display = 'block';
+        updateBossHP();
+        lastSummonTime = Date.now();
+        if (isRematch) for(let i = 0; i < 10; i++) spawnDino(true);
+        for(let i=0; i< (isRematch ? 6 : 4); i++) spawnFruit();
+    }
+
+    function updateBossHP() {
+        if (boss) bossHPFill.style.width = (boss.hp / boss.maxHp * 100) + '%';
+    }
+
+    function updateHeartsUI() { heartsEl.innerText = "❤️".repeat(lives); }
+
+    function spawnDino(isGuard = false) {
+        const side = Math.floor(Math.random() * 4);
+        let x, y;
+        if (side === 0) { x = Math.random() * width; y = -100; }
+        else if (side === 1) { x = width + 100; y = Math.random() * height; }
+        else if (side === 2) { x = Math.random() * width; y = height + 100; }
+        else { x = -100; y = Math.random() * height; }
+        dinos.push({ 
+            x, y, 
+            radius: isGuard ? 30 : 25, 
+            speed: isGuard ? 2.5 : (1.2 + (level * 0.4)), 
+            hue: isGuard ? 200 : (10 + Math.random() * 30), 
+            isAlly: false,
+            isGuard: isGuard,
+            animOffset: Math.random() * 100
+        });
+    }
+
+    function spawnFruitAt(x, y) {
+        const isGolden = Math.random() < 0.15; 
+        fruits.push({ x, y, radius: isGolden ? 18 : 15, type: isGolden ? '✨' : '🍎', isGolden: isGolden });
+    }
+
+    function spawnFruit() { spawnFruitAt(80 + Math.random() * (width - 160), 80 + Math.random() * (height - 160)); }
+
+    function updateEnemyCount() {
+        let enemies = dinos.filter(d => !d.isAlly).length;
+        if (boss) enemies += 1;
+        dinoCountEl.innerText = enemies;
+        if (enemies === 0 && (gameState === 'PLAYING' || gameState === 'TUTORIAL')) triggerLevelTransition();
+    }
+
+    function triggerLevelTransition() {
+        menuContent.classList.add('hidden');
+        resultContent.classList.remove('hidden');
+        overlay.style.display = 'flex';
+        bossHPBar.style.display = 'none';
+        
+        if (gameState === 'TUTORIAL') {
+            tutorialComplete = true; saveProgress();
+            msgTitle.innerText = "EVOLVED";
+            msgTitle.className = "text-5xl font-black mb-2 text-blue-400";
+            msgDesc.innerText = "You have mastered the dash.";
+            mainBtn.innerText = "ENTER JUNGLE";
+            mainBtn.onclick = () => startLevel(1);
+        } else {
+            if (level >= 5) {
+                gameBeaten = true; saveProgress();
+                overlay.classList.add('final-ending');
+                crownBox.classList.remove('hidden');
+                crownBox.classList.add('victory-float');
+                msgTitle.innerText = level === 6 ? "THE APEX PREDATOR" : "KING DEFEATED";
+                msgTitle.className = "text-5xl font-black mb-2 text-yellow-400";
+                msgDesc.innerText = level === 6 ? "You are the true King of the Cretaceous." : "The Crown is yours. But legends say he never stays dead...";
+                mainBtn.innerText = "RETURN HOME";
+                mainBtn.onclick = () => showHomeScreen();
+            } else {
+                if (level === unlockedLevels && unlockedLevels < 5) { unlockedLevels++; saveProgress(); }
+                msgTitle.innerText = `SECTOR ${level} SECURE`;
+                msgTitle.className = "text-5xl font-black mb-2 text-emerald-400";
+                msgDesc.innerText = level === 4 ? "The Great King approaches." : `Sector ${level + 1} is now accessible.`;
+                mainBtn.innerText = level === 4 ? "CHALLENGE KING" : "CONTINUE";
+                mainBtn.onclick = () => startLevel(level + 1);
+            }
+        }
+    }
+
+    function gameOver() {
+        gameState = 'LOST';
+        menuContent.classList.add('hidden');
+        resultContent.classList.remove('hidden');
+        overlay.style.display = 'flex';
+        bossHPBar.style.display = 'none';
+        msgTitle.innerText = "EXTINCT";
+        msgTitle.className = "text-6xl font-black mb-2 text-red-600";
+        msgDesc.innerText = "Evolution was not on your side.";
+        mainBtn.innerText = "TRY AGAIN";
+        mainBtn.onclick = () => startLevel(level);
+    }
+
+    function takeDamage() {
+        if (invulnTimer > 0) return;
+        lives--; updateHeartsUI(); invulnTimer = 60;
+        createParticles(player.x, player.y, '#ef4444', 20);
+        if (lives <= 0) gameOver();
+    }
+
+    function update() {
+        if (gameState === 'MENU' || gameState === 'LOST' || gameState === 'WON') return;
+        gameTime += 0.05;
+        if (invulnTimer > 0) invulnTimer--;
+
+        player.x += moveJoy.moveX * player.speed;
+        player.y += moveJoy.moveY * player.speed;
+        player.x = Math.max(player.radius, Math.min(width - player.radius, player.x));
+        player.y = Math.max(player.radius, Math.min(height - player.radius, player.y));
+
+        if (boss) {
+            const summonInterval = (level === 6) ? 3500 : 4500;
+            if (Date.now() - lastSummonTime > summonInterval) {
+                lastSummonTime = Date.now();
+                spawnDino(true);
+                updateEnemyCount();
+            }
+
+            if (boss.y < boss.targetY) boss.y += 2.5;
+            else {
+                const angle = Math.atan2(player.y - boss.y, player.x - boss.x);
+                boss.x += Math.cos(angle) * boss.speed;
+                boss.y += Math.sin(angle) * boss.speed;
+            }
+            if (Math.hypot(boss.x - player.x, boss.y - player.y) < boss.radius + player.radius - 20) takeDamage();
+        }
+
+        if (aimJoy.active && Date.now() - lastFireTime > FIRE_RATE && (ammo > 0 || goldAmmo > 0)) {
+            lastFireTime = Date.now();
+            const angle = Math.atan2(aimJoy.moveY, aimJoy.moveX);
+            if (goldAmmo > 0) {
+                goldAmmo--; if (goldAmmo === 0) goldIndicator.classList.add('hidden');
+                projectiles.push({ x: player.x, y: player.y, vx: Math.cos(angle)*12, vy: Math.sin(angle)*12, radius: 12, isGolden: true });
+            } else {
+                ammo--; ammoVal.innerText = ammo;
+                projectiles.push({ x: player.x, y: player.y, vx: Math.cos(angle)*14, vy: Math.sin(angle)*14, radius: 8, isGolden: false });
+            }
+        }
+
+        for (let i = projectiles.length - 1; i >= 0; i--) {
+            let p = projectiles[i]; p.x += p.vx; p.y += p.vy;
+            if (boss && Math.hypot(p.x - boss.x, p.y - boss.y) < p.radius + boss.radius) {
+                boss.hp -= p.isGolden ? 2 : 1; 
+                createParticles(p.x, p.y, p.isGolden ? '#fbbf24' : '#ef4444', 10);
+                updateBossHP(); 
+                projectiles.splice(i, 1);
+                if (boss.hp <= 0) { createParticles(boss.x, boss.y, '#2e1065', 50); boss = null; updateEnemyCount(); }
+                continue;
+            }
+            for (let j = dinos.length - 1; j >= 0; j--) {
+                let d = dinos[j]; if (d.isAlly) continue;
+                if (Math.hypot(p.x - d.x, p.y - d.y) < p.radius + d.radius) {
+                    if (p.isGolden) { 
+                        d.isAlly = true; d.radius = 35; d.speed *= 1.4; d.hue = 50; 
+                        createParticles(d.x, d.y, '#fbbf24', 15);
+                    }
+                    else {
+                        createParticles(d.x, d.y, `hsl(${d.hue}, 60%, 40%)`, 15);
+                        dinos.splice(j, 1);
+                    }
+                    projectiles.splice(i, 1); updateEnemyCount(); break;
+                }
+            }
+            if (p && (p.x < -100 || p.x > width+100 || p.y < -100 || p.y > height+100)) projectiles.splice(i, 1);
+        }
+
+        dinos.forEach((d) => {
+            let target = d.isAlly ? (boss || dinos.find(e => !e.isAlly)) : player;
+            if (target) {
+                const angle = Math.atan2(target.y - d.y, target.x - d.x);
+                d.x += Math.cos(angle) * d.speed; d.y += Math.sin(angle) * d.speed;
+                if (Math.hypot(d.x - target.x, d.y - target.y) < d.radius + target.radius - 10) {
+                    if (d.isAlly) {
+                        if (target === boss) { boss.hp -= 0.03; updateBossHP(); if(boss.hp <= 0){ createParticles(boss.x, boss.y, '#2e1065', 50); boss=null;updateEnemyCount();}}
+                        else { 
+                            createParticles(target.x, target.y, `hsl(${target.hue}, 60%, 40%)`, 10);
+                            dinos.splice(dinos.indexOf(target), 1); 
+                            updateEnemyCount(); 
+                        }
+                    } else takeDamage();
+                }
+            }
+        });
+
+        fruits.forEach((f, i) => {
+            if (Math.hypot(f.x - player.x, f.y - player.y) < f.radius + player.radius) {
+                fruits.splice(i, 1);
+                if (f.isGolden) { goldAmmo++; goldIndicator.classList.remove('hidden'); }
+                else { ammo += 5; ammoVal.innerText = ammo; }
+                spawnFruit();
+            }
+        });
+
+        for (let i = particles.length - 1; i >= 0; i--) {
+            let p = particles[i];
+            p.x += p.vx; p.y += p.vy;
+            p.life -= 0.02;
+            if (p.life <= 0) particles.splice(i, 1);
+        }
+    }
+
+    function drawDino(d) {
+        const time = gameTime + (d.animOffset || 0);
+        const walkCycle = Math.sin(time * 6);
+        const tailWag = Math.cos(time * 3);
+        const armWiggle = Math.sin(time * 10);
+        const bob = Math.abs(Math.cos(time * 6)) * 4;
+        
+        ctx.save(); ctx.translate(d.x, d.y);
+        ctx.rotate(Math.atan2((d.isAlly ? (boss?.y || d.y) : player.y) - d.y, (d.isAlly ? (boss?.x || d.x) : player.x) - d.x));
+        
+        const baseColor = d.isBoss ? '#2e1065' : (d.isGuard ? '#1e1b4b' : `hsl(${d.hue}, 60%, 35%)`);
+        const shadowColor = d.isBoss ? '#1e0a45' : `hsl(${d.hue}, 40%, 15%)`;
+        
+        if (d.isAlly) { ctx.shadowBlur = 15; ctx.shadowColor = '#fbbf24'; }
+
+        // Tail (Heavy T-Rex Tail)
+        ctx.fillStyle = baseColor;
+        ctx.beginPath();
+        ctx.moveTo(-d.radius * 0.5, 0);
+        ctx.quadraticCurveTo(-d.radius * 1.5, tailWag * d.radius * 0.4, -d.radius * 2.2, tailWag * d.radius * 0.2);
+        ctx.lineTo(-d.radius * 0.5, d.radius * 0.3);
+        ctx.closePath();
+        ctx.fill();
+
+        // Legs (Strong Hind Legs)
+        ctx.fillStyle = shadowColor;
+        // Back leg
+        ctx.beginPath();
+        ctx.ellipse(d.radius * 0.1, d.radius * 0.6 + walkCycle * 4, d.radius * 0.3, d.radius * 0.5, 0.2, 0, Math.PI * 2);
+        ctx.fill();
+        // Front leg
+        ctx.beginPath();
+        ctx.ellipse(d.radius * 0.4, d.radius * 0.6 - walkCycle * 4, d.radius * 0.3, d.radius * 0.5, -0.2, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Main Body (Thick T-Rex Torso)
+        ctx.fillStyle = baseColor;
+        ctx.beginPath(); 
+        ctx.ellipse(0, -bob, d.radius * 1.1, d.radius * 0.8, 0, 0, Math.PI * 2); 
+        ctx.fill();
+
+        // Tiny Arms
+        ctx.strokeStyle = baseColor;
+        ctx.lineWidth = d.radius * 0.15;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(d.radius * 0.5, d.radius * 0.1 - bob);
+        ctx.lineTo(d.radius * 0.8, d.radius * 0.3 - bob + armWiggle * 5);
+        ctx.stroke();
+        
+        // Head (Large Boxy T-Rex Head)
+        ctx.save();
+        ctx.translate(d.radius * 0.9, -d.radius * 0.5 - bob * 1.5);
+        ctx.rotate(0.2);
+        ctx.beginPath(); 
+        ctx.roundRect(-d.radius * 0.4, -d.radius * 0.6, d.radius * 1.1, d.radius * 0.9, d.radius * 0.2); 
+        ctx.fill();
+        
+        // Jaw
+        ctx.beginPath();
+        ctx.roundRect(-d.radius * 0.2, d.radius * 0.2, d.radius * 0.8, d.radius * 0.3, d.radius * 0.1);
+        ctx.fill();
+
+        // Eye
+        ctx.fillStyle = d.isBoss ? '#ef4444' : (d.isAlly ? 'black' : 'white');
+        ctx.beginPath(); ctx.arc(d.radius * 0.3, -d.radius * 0.2, d.isBoss ? 8 : 3, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+        
+        // Crown for Boss
+        if (d.isBoss && d.hasCrown) {
+            ctx.restore();
+            ctx.save();
+            ctx.translate(d.x, d.y);
+            ctx.rotate(Math.atan2(player.y - d.y, player.x - d.x));
+            ctx.fillStyle = '#fbbf24';
+            ctx.shadowBlur = 10; ctx.shadowColor = 'gold';
+            const cx = d.radius * 1.0, cy = -d.radius * 1.3 - bob * 1.5;
+            ctx.beginPath();
+            ctx.moveTo(cx - 30, cy);
+            ctx.lineTo(cx - 35, cy - 40);
+            ctx.lineTo(cx - 15, cy - 20);
+            ctx.lineTo(cx, cy - 50);
+            ctx.lineTo(cx + 15, cy - 20);
+            ctx.lineTo(cx + 35, cy - 40);
+            ctx.lineTo(cx + 30, cy);
+            ctx.closePath();
+            ctx.fill();
+            // Gemstone in crown
+            ctx.fillStyle = '#ef4444';
+            ctx.beginPath(); ctx.arc(cx, cy - 15, 6, 0, Math.PI*2); ctx.fill();
+        }
+        ctx.restore();
+    }
+
+    function draw() {
+        ctx.fillStyle = gameState === 'WON' ? '#064e3b' : '#143216';
+        ctx.fillRect(0, 0, width, height);
+        if (gameState === 'MENU') return;
+        
+        // Particles
+        particles.forEach(p => {
+            ctx.globalAlpha = p.life;
+            ctx.fillStyle = p.color;
+            ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI*2); ctx.fill();
+        });
+        ctx.globalAlpha = 1.0;
+
+        fruits.forEach(f => { 
+            ctx.font = '32px serif'; ctx.textAlign = 'center'; 
+            ctx.fillText(f.type, f.x, f.y + 10 + Math.sin(gameTime * 2 + f.x) * 5); 
+        });
+
+        if (invulnTimer % 10 < 5) {
+            const playerBob = Math.sin(gameTime * 4) * 3;
+            ctx.fillStyle = '#fdba74'; 
+            ctx.beginPath(); ctx.arc(player.x, player.y + playerBob, player.radius, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = 'black';
+            ctx.beginPath(); ctx.arc(player.x + 5, player.y - 3 + playerBob, 2, 0, Math.PI*2); ctx.fill();
+            ctx.beginPath(); ctx.arc(player.x - 5, player.y - 3 + playerBob, 2, 0, Math.PI*2); ctx.fill();
+        }
+
+        if (boss) drawDino(boss);
+        dinos.forEach(drawDino);
+
+        projectiles.forEach(p => { 
+            ctx.fillStyle = p.isGolden ? '#fbbf24' : '#facc15'; 
+            ctx.shadowBlur = p.isGolden ? 15 : 0;
+            ctx.shadowColor = '#fbbf24';
+            ctx.beginPath(); ctx.arc(p.x, p.y, p.radius, 0, Math.PI*2); ctx.fill(); 
+            ctx.shadowBlur = 0;
+        });
+    }
+
+    function loop() { update(); draw(); requestAnimationFrame(loop); }
+    window.onload = () => { loadProgress(); showHomeScreen(); loop(); };
+</script>
+</body>
+</html>
+
