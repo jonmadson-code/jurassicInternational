@@ -305,6 +305,16 @@ function update() {
     }
 }
 
+// ─── Emoji sprite helper ─────────────────────────────────────
+function drawEmoji(emoji, cx, cy, size) {
+    ctx.save();
+    ctx.font = `${size}px serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(emoji, cx, cy);
+    ctx.restore();
+}
+
 // ─── Draw ────────────────────────────────────────────────────
 function draw() {
     const W = canvas.width, H = canvas.height;
@@ -348,23 +358,17 @@ function draw() {
     // ── Items ──
     items.forEach(it => {
         const bob = Math.sin(it.bob) * 4;
-        ctx.fillStyle = it.type === 'treat' ? '#c8956b' : '#3b82f6';
-        ctx.fillRect(it.x, it.y + bob, it.w, it.h);
-        ctx.fillStyle = 'rgba(255,255,255,0.6)';
-        ctx.font = '10px monospace'; ctx.textAlign = 'center';
-        ctx.fillText(it.type === 'treat' ? 'TREAT' : 'SHLD', it.x + it.w/2, it.y + bob - 3);
+        drawEmoji(it.type === 'treat' ? '🦴' : '🛡️', it.x + it.w/2, it.y + it.h/2 + bob, 22);
     });
 
     // ── Player projectiles (treats) ──
-    ctx.fillStyle = '#d4a574';
     treats.forEach(t => {
-        ctx.beginPath(); ctx.arc(t.x + t.w/2, t.y + t.h/2, t.w/2, 0, Math.PI*2); ctx.fill();
+        drawEmoji('🍖', t.x + t.w/2, t.y + t.h/2, 16);
     });
 
     // ── Hunter bullets ──
-    ctx.fillStyle = '#f87171';
     bullets.forEach(b => {
-        ctx.beginPath(); ctx.arc(b.x + b.w/2, b.y + b.h/2, b.w/2, 0, Math.PI*2); ctx.fill();
+        drawEmoji('🏹', b.x + b.w/2, b.y + b.h/2, 16);
     });
 
     // ── Axe flashes ──
@@ -377,14 +381,7 @@ function draw() {
 
     // ── Hunters ──
     hunters.forEach(h => {
-        ctx.fillStyle = h.isRick ? '#fbbf24' : '#dc2626';
-        ctx.fillRect(h.x, h.y, h.w, h.h);
-        ctx.fillStyle = h.isRick ? '#000' : 'rgba(255,255,255,0.75)';
-        ctx.font = `bold ${h.isRick ? 8 : 7}px monospace`; ctx.textAlign = 'center';
-        ctx.fillText(h.isRick ? 'RICK' : 'HNTR', h.x + h.w/2, h.y + h.h/2 + 3);
-        // Eye
-        ctx.fillStyle = h.isRick ? '#7f1d1d' : '#fff';
-        ctx.fillRect(h.x + 4, h.y + 5, 4, 4);
+        drawEmoji(h.isRick ? '🦝' : '🧑', h.x + h.w/2, h.y + h.h/2, h.isRick ? 26 : 30);
     });
 
     // ── Player ──
@@ -396,14 +393,7 @@ function draw() {
             ctx.strokeRect(player.x - 4, player.y - 4, player.w + 8, player.h + 8);
             ctx.restore();
         }
-        ctx.fillStyle = player.shielded ? '#86efac' : '#4ade80';
-        ctx.fillRect(player.x, player.y, player.w, player.h);
-        // Eye
-        ctx.fillStyle = '#052e16';
-        ctx.fillRect(player.x + player.w - 9, player.y + 7, 4, 4);
-        // Mouth nub (where treats fire from)
-        ctx.fillStyle = '#16a34a';
-        ctx.fillRect(player.x + player.w - 2, player.y + player.h/2 - 2, 5, 4);
+        drawEmoji('🦕', player.x + player.w/2, player.y + player.h/2, 34);
     }
 
     // ── Particles ──
