@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jurassic Jaws</title>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            background: #091408;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+        canvas { display: block; }
+        #back-link {
+            position: fixed;
+            top: 10px;
+            right: 14px;
+            color: rgba(255,255,255,0.35);
+            font-size: 12px;
+            font-family: monospace;
+            text-decoration: none;
+            z-index: 10;
+        }
+        #back-link:hover { color: rgba(255,255,255,0.75); }
+    </style>
+</head>
+<body>
+<a href="../index.html" id="back-link">&#8592; Jurassic International</a>
+<canvas id="gameCanvas"></canvas>
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx    = canvas.getContext('2d');
+
+// ─── Responsive sizing (16:10) ──────────────────────────────
+function resize() {
+    const maxW = Math.min(window.innerWidth, 920);
+    const maxH = Math.min(window.innerHeight - 30, 576);
+    let w = maxW, h = w / 1.6;
+    if (h > maxH) { h = maxH; w = h * 1.6; }
+    canvas.width  = Math.floor(w);
+    canvas.height = Math.floor(h);
+}
+resize();
+window.addEventListener('resize', resize);
+
+// ─── Constants ──────────────────────────────────────────────
+const PLAYER_SPEED    = 4.5;
+const INVULN_FRAMES   = 90;
+const MAX_AMMO        = 100;
+const TREAT_FIRE_MS   = 75;
+const TREAT_SPEED     = 13;
+const BULLET_SPEED    = 4.5;
+
+// ─── Game state ─────────────────────────────────────────────
+let state = 'MENU';   // MENU | PLAYING | GAMEOVER
+let score = 0, lives = 3, invulnTimer = 0, treatAmmo = 0, lastTreatFire = 0;
+let scrollX = 0;
+let hunterSpawnTimer = 0, itemSpawnTimer = 0, scoreTimer = 0;
+let player = null;
+let hunters = [], bullets = [], treats = [], items = [], particles = [], axeFlashes = [];
+let bgTrees = [];
+
+// Seed background trees for menu screen (also re-seeded on resetGame)
+function seedBGTrees() {
+    bgTrees = [];
+    for (let i = 0; i < 22; i++) {
+        bgTrees.push({
+            x: Math.random() * canvas.width * 2.2,
+            w: 16 + Math.random() * 22,
+            h: 55 + Math.random() * 90,
+            layer: i < 10 ? 0 : 1
+        });
+    }
+}
+seedBGTrees();
+
+// ─── Input ──────────────────────────────────────────────────
+const keys = {};
+window.addEventListener('keydown', e => {
+    keys[e.code] = true;
+    if (e.code === 'Space') e.preventDefault();
+    if (e.code === 'Enter' && (state === 'MENU' || state === 'GAMEOVER')) resetGame();
+    if (e.code === 'KeyH'  && state === 'GAMEOVER') window.location.href = '../index.html';
+});
+window.addEventListener('keyup', e => { keys[e.code] = false; });
+
+// ─── Init / reset ───────────────────────────────────────────
+function resetGame() {
+    const W = canvas.width, H = canvas.height;
+    score = 0; lives = 3; invulnTimer = 0; treatAmmo = 0; lastTreatFire = 0;
+    scrollX = 0; hunterSpawnTimer = 0; itemSpawnTimer = 0; scoreTimer = 0;
+
+    player = {
+        x: W * 0.15, y: H * 0.5,
+        w: 38, h: 28,
+        shielded: false, shieldTimer: 0
+    };
+
+    hunters = []; bullets = []; treats = []; items = [];
+    particles = []; axeFlashes = [];
+    seedBGTrees();
+    state = 'PLAYING';
+}
+
+// ─── Spawners ────────────────────────────────────────────────
+function spawnHunter() {
+    const W = canvas.width, H = canvas.height;
+    const isRick   = Math.random() < 0.05;
+    const baseSpd  = 1.6 + score / 3000;
+    hunters.push({
+        x: W + 30,
+        y: H * 0.12 + Math.random() * H * 0.72,
+        w: isRick ? 26 : 34, h: isRick ? 24 : 28,
+        speed:  isRick ? baseSpd * 10 : baseSpd,
+        hp:     isRick ? 1 : 2,
+        isRick,
+        shootCD: 60 + Math.random() * 80,
+        axeCD:   0
+    });
+}
+
+function spawnItem() {
+    const W = canvas.width, H = canvas.height;
+    const type = Math.random() < 0.5 ? 'treat' : 'shield';
+    items.push({
+        x: W * 0.08 + Math.random() * W * 0.84,
+        y: H * 0.08 + Math.random() * H * 0.78,
+        w: 22, h: 22, type,
+        bob: Math.random() * Math.PI * 2
+    });
+}
+
+function fireTreat() {
+    if (treatAmmo <= 0) return;
+    treatAmmo--;
+    treats.push({
+        x: player.x + player.w,
+        y: player.y + player.h / 2 - 3,
+        w: 9, h: 9
+    });
+}
+
+function hunterFire(h) {
+    const px = player.x + player.w / 2, py = player.y + player.h / 2;
+    const hx = h.x + h.w / 2,           hy = h.y + h.h / 2;
+    const dx = px - hx, dy = py - hy, d = Math.hypot(dx, dy);
+    bullets.push({ x: hx, y: hy, vx: (dx/d)*BULLET_SPEED, vy: (dy/d)*BULLET_SPEED, w: 7, h: 7 });
+}
+
+// ─── Helpers ─────────────────────────────────────────────────
+function overlap(a, b) {
+    return a.x < b.x+b.w && a.x+a.w > b.x && a.y < b.y+b.h && a.y+a.h > b.y;
+}
+
+function burst(x, y, color, n) {
+    for (let i = 0; i < n; i++) {
+        const a = Math.random() * Math.PI * 2, s = 2 + Math.random() * 5;
+        particles.push({ x, y, vx: Math.cos(a)*s, vy: Math.sin(a)*s,
+                          color, size: 2 + Math.random()*3, life: 1 });
+    }
+}
+
+// ─── Damage ─────────────────────────────────────────────────
+function takeDamage(fromRick) {
+    if (!fromRick && invulnTimer > 0) return;
+    if (!fromRick && player.shielded) {
+        player.shielded = false; player.shieldTimer = 0;
+        invulnTimer = 45;
+        burst(player.x + player.w/2, player.y + player.h/2, '#93c5fd', 10);
+        return;
+    }
+    lives--;
+    invulnTimer = fromRick ? 0 : INVULN_FRAMES;
+    burst(player.x + player.w/2, player.y + player.h/2, '#ef4444', 20);
+    if (lives <= 0) { lives = 0; state = 'GAMEOVER'; }
+}
+
+// ─── Update ─────────────────────────────────────────────────
+function update() {
+    if (state !== 'PLAYING') return;
+    const W = canvas.width, H = canvas.height;
+
+    // Distance score
+    if (++scoreTimer % 6 === 0) score++;
+
+    // Scroll
+    scrollX += 1.5;
+
+    // Player movement
+    if (keys['ArrowLeft']  || keys['KeyA']) player.x = Math.max(0,        player.x - PLAYER_SPEED);
+    if (keys['ArrowRight'] || keys['KeyD']) player.x = Math.min(W-player.w, player.x + PLAYER_SPEED);
+    if (keys['ArrowUp']    || keys['KeyW']) player.y = Math.max(0,        player.y - PLAYER_SPEED);
+    if (keys['ArrowDown']  || keys['KeyS']) player.y = Math.min(H-player.h, player.y + PLAYER_SPEED);
+
+    // Treat minigun
+    if (keys['Space'] && treatAmmo > 0 && Date.now() - lastTreatFire >= TREAT_FIRE_MS) {
+        lastTreatFire = Date.now();
+        fireTreat();
+    }
+
+    // Cooldown timers
+    if (invulnTimer > 0) invulnTimer--;
+    if (player.shieldTimer > 0 && --player.shieldTimer === 0) player.shielded = false;
+
+    // Spawn hunters
+    const spawnRate = Math.max(45, 150 - Math.floor(score / 15));
+    if (++hunterSpawnTimer >= spawnRate) {
+        hunterSpawnTimer = 0;
+        spawnHunter();
+        if (score > 300 && Math.random() < 0.35) spawnHunter();
+    }
+
+    // Spawn items (10% chance every ~280 frames)
+    if (++itemSpawnTimer >= 280) {
+        itemSpawnTimer = 0;
+        if (Math.random() < 0.15) spawnItem();
+    }
+
+    // ── Treats (player projectiles) ──
+    for (let i = treats.length - 1; i >= 0; i--) {
+        const t = treats[i];
+        t.x += TREAT_SPEED;
+        if (t.x > W + 20) { treats.splice(i, 1); continue; }
+        let hit = false;
+        for (let j = hunters.length - 1; j >= 0; j--) {
+            if (overlap(t, hunters[j])) {
+                const h = hunters[j];
+                burst(t.x, t.y, '#d4a574', 5);
+                if (--h.hp <= 0) {
+                    burst(h.x+h.w/2, h.y+h.h/2, h.isRick ? '#fbbf24' : '#f87171', 14);
+                    hunters.splice(j, 1);
+                    score += h.isRick ? 200 : 50;
+                }
+                treats.splice(i, 1); hit = true; break;
+            }
+        }
+    }
+
+    // ── Hunters ──
+    const pcx = player.x + player.w/2, pcy = player.y + player.h/2;
+    for (let i = hunters.length - 1; i >= 0; i--) {
+        const h = hunters[i];
+        const hcx = h.x + h.w/2, hcy = h.y + h.h/2;
+        const dx = pcx - hcx, dy = pcy - hcy;
+        const dist = Math.hypot(dx, dy);
+
+        h.x += (dx/dist) * h.speed;
+        h.y += (dy/dist) * h.speed;
+        if (h.x < -90) { hunters.splice(i, 1); continue; }
+
+        // Raccoon Rick: instant kill on contact, ignores shield
+        if (h.isRick) {
+            if (overlap(player, h)) takeDamage(true);
+            continue;
+        }
+
+        // Shoot when far
+        if (dist > 200 && --h.shootCD <= 0) {
+            h.shootCD = 70 + Math.random() * 60;
+            hunterFire(h);
+        }
+
+        // Axe swing when close
+        if (dist < 50 && --h.axeCD <= 0) {
+            h.axeCD = 42;
+            axeFlashes.push({ x: h.x - 18, y: h.y - 8, life: 18 });
+            takeDamage(false);
+        }
+    }
+
+    // ── Hunter bullets ──
+    for (let i = bullets.length - 1; i >= 0; i--) {
+        const b = bullets[i];
+        b.x += b.vx; b.y += b.vy;
+        if (b.x < -20 || b.x > W+20 || b.y < -20 || b.y > H+20) { bullets.splice(i, 1); continue; }
+        if (overlap(player, b)) { bullets.splice(i, 1); takeDamage(false); }
+    }
+
+    // ── Items ──
+    for (let i = items.length - 1; i >= 0; i--) {
+        const it = items[i];
+        it.bob += 0.05;
+        if (overlap(player, it)) {
+            if (it.type === 'treat') treatAmmo = Math.min(treatAmmo + 35, MAX_AMMO);
+            else { player.shielded = true; player.shieldTimer = 480; }
+            burst(it.x+it.w/2, it.y+it.h/2, it.type === 'treat' ? '#d4a574' : '#93c5fd', 12);
+            items.splice(i, 1);
+        }
+    }
+
+    // ── Particles ──
+    for (let i = particles.length - 1; i >= 0; i--) {
+        const p = particles[i];
+        p.x += p.vx; p.y += p.vy; p.vx *= 0.91; p.vy *= 0.91;
+        if ((p.life -= 0.025) <= 0) particles.splice(i, 1);
+    }
+
+    // ── Axe flashes ──
+    for (let i = axeFlashes.length - 1; i >= 0; i--) {
+        if (--axeFlashes[i].life <= 0) axeFlashes.splice(i, 1);
+    }
+}
+
+// ─── Draw ────────────────────────────────────────────────────
+function draw() {
+    const W = canvas.width, H = canvas.height;
+
+    // Sky
+    const sky = ctx.createLinearGradient(0, 0, 0, H * 0.65);
+    sky.addColorStop(0, '#0a1a08');
+    sky.addColorStop(1, '#162e10');
+    ctx.fillStyle = sky; ctx.fillRect(0, 0, W, H * 0.65);
+
+    // Ground
+    const gnd = ctx.createLinearGradient(0, H * 0.65, 0, H);
+    gnd.addColorStop(0, '#1a3a10');
+    gnd.addColorStop(1, '#0a1808');
+    ctx.fillStyle = gnd; ctx.fillRect(0, H * 0.65, W, H * 0.35);
+
+    ctx.strokeStyle = '#2a5a1a'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(0, H * 0.65); ctx.lineTo(W, H * 0.65); ctx.stroke();
+
+    // Parallax trees
+    bgTrees.forEach(t => {
+        const spd = t.layer === 0 ? 0.28 : 0.65;
+        const tx  = ((t.x - scrollX * spd) % (W * 2.2) + W * 2.2) % (W * 2.2) - 80;
+        ctx.fillStyle = t.layer === 0 ? '#0e2208' : '#122a0c';
+        ctx.fillRect(tx - t.w/2, H * 0.65 - t.h, t.w, t.h);
+        ctx.beginPath(); ctx.arc(tx, H * 0.65 - t.h, t.w * 0.95, 0, Math.PI * 2); ctx.fill();
+    });
+
+    // Ground scroll dashes
+    ctx.strokeStyle = 'rgba(40,90,20,0.22)'; ctx.lineWidth = 1;
+    ctx.setLineDash([6, 14]);
+    for (let i = 0; i < 9; i++) {
+        const x = (((i * 110) - scrollX * 1.2) % (W + 110) + W + 110) % (W + 110) - 55;
+        ctx.beginPath(); ctx.moveTo(x, H * 0.68); ctx.lineTo(x + 55, H * 0.96); ctx.stroke();
+    }
+    ctx.setLineDash([]);
+
+    if (state === 'MENU')     { drawMenu(); return; }
+    if (state === 'GAMEOVER') { drawGameOver(); return; }
+
+    // ── Items ──
+    items.forEach(it => {
+        const bob = Math.sin(it.bob) * 4;
+        ctx.fillStyle = it.type === 'treat' ? '#c8956b' : '#3b82f6';
+        ctx.fillRect(it.x, it.y + bob, it.w, it.h);
+        ctx.fillStyle = 'rgba(255,255,255,0.6)';
+        ctx.font = '10px monospace'; ctx.textAlign = 'center';
+        ctx.fillText(it.type === 'treat' ? 'TREAT' : 'SHLD', it.x + it.w/2, it.y + bob - 3);
+    });
+
+    // ── Player projectiles (treats) ──
+    ctx.fillStyle = '#d4a574';
+    treats.forEach(t => {
+        ctx.beginPath(); ctx.arc(t.x + t.w/2, t.y + t.h/2, t.w/2, 0, Math.PI*2); ctx.fill();
+    });
+
+    // ── Hunter bullets ──
+    ctx.fillStyle = '#f87171';
+    bullets.forEach(b => {
+        ctx.beginPath(); ctx.arc(b.x + b.w/2, b.y + b.h/2, b.w/2, 0, Math.PI*2); ctx.fill();
+    });
+
+    // ── Axe flashes ──
+    axeFlashes.forEach(af => {
+        ctx.save(); ctx.globalAlpha = af.life / 18;
+        ctx.font = 'bold 20px serif'; ctx.textAlign = 'left';
+        ctx.fillText('⚡', af.x, af.y + 18);
+        ctx.restore();
+    });
+
+    // ── Hunters ──
+    hunters.forEach(h => {
+        ctx.fillStyle = h.isRick ? '#fbbf24' : '#dc2626';
+        ctx.fillRect(h.x, h.y, h.w, h.h);
+        ctx.fillStyle = h.isRick ? '#000' : 'rgba(255,255,255,0.75)';
+        ctx.font = `bold ${h.isRick ? 8 : 7}px monospace`; ctx.textAlign = 'center';
+        ctx.fillText(h.isRick ? 'RICK' : 'HNTR', h.x + h.w/2, h.y + h.h/2 + 3);
+        // Eye
+        ctx.fillStyle = h.isRick ? '#7f1d1d' : '#fff';
+        ctx.fillRect(h.x + 4, h.y + 5, 4, 4);
+    });
+
+    // ── Player ──
+    if (invulnTimer % 8 < 5) {
+        if (player.shielded) {
+            ctx.save();
+            ctx.shadowBlur = 16; ctx.shadowColor = '#60a5fa';
+            ctx.strokeStyle = '#93c5fd'; ctx.lineWidth = 2.5;
+            ctx.strokeRect(player.x - 4, player.y - 4, player.w + 8, player.h + 8);
+            ctx.restore();
+        }
+        ctx.fillStyle = player.shielded ? '#86efac' : '#4ade80';
+        ctx.fillRect(player.x, player.y, player.w, player.h);
+        // Eye
+        ctx.fillStyle = '#052e16';
+        ctx.fillRect(player.x + player.w - 9, player.y + 7, 4, 4);
+        // Mouth nub (where treats fire from)
+        ctx.fillStyle = '#16a34a';
+        ctx.fillRect(player.x + player.w - 2, player.y + player.h/2 - 2, 5, 4);
+    }
+
+    // ── Particles ──
+    particles.forEach(p => {
+        ctx.save(); ctx.globalAlpha = Math.max(0, p.life);
+        ctx.fillStyle = p.color;
+        ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI*2); ctx.fill();
+        ctx.restore();
+    });
+
+    drawHUD();
+}
+
+// ─── HUD ─────────────────────────────────────────────────────
+function drawHUD() {
+    const W = canvas.width, H = canvas.height;
+    const fs = Math.floor(H * 0.038);
+
+    // Lives
+    let hearts = '';
+    for (let i = 0; i < 3; i++) hearts += i < lives ? '❤️' : '🖤';
+    ctx.font = `bold ${fs}px monospace`; ctx.textAlign = 'left';
+    ctx.fillStyle = '#fff'; ctx.fillText(hearts, 12, fs + 6);
+
+    // Treat ammo bar
+    const bx = 12, by = fs + 14, bw = 108, bh = 11;
+    ctx.fillStyle = 'rgba(0,0,0,0.45)';  ctx.fillRect(bx, by, bw, bh);
+    ctx.fillStyle = '#d4a574';            ctx.fillRect(bx, by, bw * (treatAmmo / MAX_AMMO), bh);
+    ctx.strokeStyle = 'rgba(255,255,255,0.2)'; ctx.lineWidth = 1;
+    ctx.strokeRect(bx, by, bw, bh);
+    ctx.fillStyle = 'rgba(255,255,255,0.5)'; ctx.font = '9px monospace';
+    ctx.fillText('TREATS', bx + bw + 5, by + 9);
+
+    // Shield indicator
+    if (player && player.shielded) {
+        ctx.fillStyle = '#93c5fd'; ctx.font = 'bold 11px monospace';
+        ctx.fillText('⚡ SHIELD ACTIVE', 12, by + bh + 16);
+    }
+
+    // Score (distance)
+    ctx.textAlign = 'right'; ctx.font = `bold ${fs}px monospace`;
+    ctx.fillStyle = '#a3e635';
+    ctx.fillText(score + 'm', W - 12, fs + 6);
+    ctx.fillStyle = 'rgba(163,230,53,0.4)'; ctx.font = '10px monospace';
+    ctx.fillText('DISTANCE', W - 12, fs + 20);
+}
+
+// ─── Overlay helpers ─────────────────────────────────────────
+function darkPanel(x, y, w, h) {
+    ctx.fillStyle = 'rgba(4,10,3,0.82)';
+    ctx.beginPath(); ctx.roundRect(x, y, w, h, 12); ctx.fill();
+    ctx.strokeStyle = 'rgba(74,222,128,0.2)'; ctx.lineWidth = 1; ctx.stroke();
+}
+
+function drawMenu() {
+    const W = canvas.width, H = canvas.height;
+    const pw = Math.min(560, W * 0.9), ph = 400;
+    const px = W/2 - pw/2, py = H/2 - ph/2;
+    darkPanel(px, py, pw, ph);
+
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#4ade80';
+    ctx.font = `bold ${Math.floor(H * 0.088)}px monospace`;
+    ctx.fillText('JURASSIC JAWS', W/2, py + 72);
+
+    ctx.fillStyle = 'rgba(163,230,53,0.7)';
+    ctx.font = `${Math.floor(H * 0.03)}px monospace`;
+    ctx.fillText('Survive the hunters. Protect the jungle.', W/2, py + 106);
+
+    const lh = Math.floor(H * 0.034);
+    ctx.fillStyle = 'rgba(255,255,255,0.72)';
+    ctx.font = `${lh}px monospace`;
+    [
+        'WASD / Arrows  —  Move',
+        'SPACE (hold)  —  Fire Dog Treats',
+        'Collect  TAN = Treats  ·  BLUE = Shield',
+    ].forEach((line, i) => ctx.fillText(line, W/2, py + 155 + i * (lh + 7)));
+
+    ctx.fillStyle = '#fbbf24';
+    ctx.font = `bold ${lh}px monospace`;
+    ctx.fillText('⚠  RACCOON RICK (GOLD) = INSTANT KILL  ⚠', W/2, py + 280);
+
+    ctx.fillStyle = '#4ade80';
+    ctx.font = `bold ${Math.floor(H * 0.042)}px monospace`;
+    ctx.globalAlpha = 0.7 + 0.3 * Math.sin(Date.now() / 400);
+    ctx.fillText('PRESS  ENTER  TO  START', W/2, py + 340);
+    ctx.globalAlpha = 1;
+}
+
+function drawGameOver() {
+    const W = canvas.width, H = canvas.height;
+    const pw = Math.min(460, W * 0.9), ph = 310;
+    const px = W/2 - pw/2, py = H/2 - ph/2;
+    darkPanel(px, py, pw, ph);
+
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#ef4444';
+    ctx.font = `bold ${Math.floor(H * 0.1)}px monospace`;
+    ctx.fillText('EXTINCT', W/2, py + 88);
+
+    ctx.fillStyle = '#a3e635';
+    ctx.font = `bold ${Math.floor(H * 0.052)}px monospace`;
+    ctx.fillText(score + 'm  survived', W/2, py + 148);
+
+    ctx.fillStyle = 'rgba(255,255,255,0.6)';
+    ctx.font = `${Math.floor(H * 0.032)}px monospace`;
+    ctx.fillText('ENTER  —  play again', W/2, py + 218);
+    ctx.fillText('H  —  home screen', W/2, py + 255);
+}
+
+// ─── Main loop ───────────────────────────────────────────────
+function loop() { update(); draw(); requestAnimationFrame(loop); }
+loop();
+</script>
+</body>
+</html>

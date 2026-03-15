@@ -376,7 +376,21 @@
           </div>
         </a>
 
-        <!-- Coming soon slot (remove this once you add a second game) -->
+        <a class="game-card" href="./jurassic-jaws/jurassic-jaws.html" data-game="jaws">
+          <div class="thumb">
+            <canvas data-placeholder="jaws"></canvas>
+            <div class="thumb-overlay">
+              <div class="play-btn"><div class="play-triangle"></div></div>
+              <span class="thumb-play-label">Play</span>
+            </div>
+          </div>
+          <div class="card-info">
+            <p class="card-num">Game 02</p>
+            <p class="card-title">Jurassic Jaws</p>
+          </div>
+        </a>
+
+        <!-- Coming soon slot -->
         <div class="card-soon">
           <div class="soon-egg">🥚</div>
           <p class="soon-text">Next game hatching...</p>
@@ -532,12 +546,99 @@
       ctx.fillRect(0, 0, W, H);
     }
 
+    function drawJawsScene(canvas) {
+      const W = canvas.offsetWidth  || canvas.parentElement.offsetWidth  || 320;
+      const H = canvas.offsetHeight || canvas.parentElement.offsetHeight || 180;
+      canvas.width  = W;
+      canvas.height = H;
+      const ctx = canvas.getContext('2d');
+
+      // Sky
+      const sky = ctx.createLinearGradient(0, 0, 0, H);
+      sky.addColorStop(0, '#05080e');
+      sky.addColorStop(1, '#0a1018');
+      ctx.fillStyle = sky;
+      ctx.fillRect(0, 0, W, H);
+
+      // Distant jungle silhouette
+      ctx.fillStyle = '#071009';
+      for (let i = 0; i < 10; i++) {
+        const x = (i / 9) * W;
+        const h = H * (0.28 + Math.sin(i * 1.7 + 1) * 0.08);
+        ctx.beginPath();
+        ctx.moveTo(x - W * 0.06, H * 0.68);
+        ctx.lineTo(x, H * 0.68 - h);
+        ctx.lineTo(x + W * 0.06, H * 0.68);
+        ctx.closePath();
+        ctx.fill();
+      }
+
+      // Ground
+      const ground = ctx.createLinearGradient(0, H * 0.68, 0, H);
+      ground.addColorStop(0, '#0c1e0a');
+      ground.addColorStop(1, '#040c03');
+      ctx.fillStyle = ground;
+      ctx.fillRect(0, H * 0.68, W, H);
+
+      // Ground line
+      ctx.strokeStyle = 'rgba(60,140,30,0.22)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(0, H * 0.68);
+      ctx.lineTo(W, H * 0.68);
+      ctx.stroke();
+
+      // Player dino (green rect)
+      const px = W * 0.22, py = H * 0.52;
+      const pw = W * 0.06, ph = H * 0.16;
+      ctx.fillStyle = '#5ab840';
+      ctx.fillRect(px, py, pw, ph);
+      // Eye
+      ctx.fillStyle = '#d4f0b8';
+      ctx.fillRect(px + pw * 0.7, py + ph * 0.15, pw * 0.18, ph * 0.18);
+
+      // Treat projectiles (tan dots)
+      ctx.fillStyle = '#c8a46a';
+      [[0.36, 0.59], [0.44, 0.57], [0.52, 0.55]].forEach(([rx, ry]) => {
+        ctx.beginPath();
+        ctx.arc(W * rx, H * ry, H * 0.018, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      // Hunter 1 (red rect, far)
+      const h1x = W * 0.68, h1y = H * 0.50;
+      ctx.fillStyle = '#c0392b';
+      ctx.fillRect(h1x, h1y, W * 0.055, H * 0.18);
+
+      // Hunter 2 (red rect, closer)
+      const h2x = W * 0.82, h2y = H * 0.52;
+      ctx.fillStyle = '#9b2a1e';
+      ctx.fillRect(h2x, h2y, W * 0.048, H * 0.16);
+
+      // Shield item (blue)
+      ctx.fillStyle = '#3a8fd4';
+      ctx.fillRect(W * 0.56, H * 0.52, W * 0.038, H * 0.09);
+
+      // Hunter bullet
+      ctx.fillStyle = '#e74c3c';
+      ctx.beginPath();
+      ctx.arc(W * 0.62, H * 0.59, H * 0.014, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Vignette
+      const vig = ctx.createRadialGradient(W / 2, H / 2, H * 0.15, W / 2, H / 2, H * 0.82);
+      vig.addColorStop(0, 'rgba(0,0,0,0)');
+      vig.addColorStop(1, 'rgba(0,0,0,0.6)');
+      ctx.fillStyle = vig;
+      ctx.fillRect(0, 0, W, H);
+    }
+
     // Dispatch the right drawing function based on data-placeholder value.
     // Add new cases here as you add new games with custom placeholder art.
     function renderPlaceholder(canvas) {
       const type = canvas.dataset.placeholder;
       if (type === 'trex') drawTRexScene(canvas);
-      // e.g. if (type === 'raptor') drawRaptorScene(canvas);
+      if (type === 'jaws') drawJawsScene(canvas);
     }
 
     // Render all placeholder canvases once fonts + layout are ready
