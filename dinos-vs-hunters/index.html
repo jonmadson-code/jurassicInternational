@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, minimum-scale=1, maximum-scale=1">
     <title>Dinos vs Hunters</title>
     <style>
         *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -13,8 +13,10 @@
             justify-content: center;
             min-height: 100vh;
             overflow: hidden;
+            -webkit-user-select: none;
+            user-select: none;
         }
-        canvas { display: block; cursor: crosshair; }
+        canvas { display: block; cursor: crosshair; touch-action: none; }
         #back {
             position: fixed;
             top: 10px;
@@ -57,6 +59,12 @@ const keys  = {};
 const mouse = { x: 0, y: 0, held: false };
 let   clickThisFrame = false;
 
+const isTouchDevice = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
+const leftStick     = { active: false, id: -1, baseX: 0, baseY: 0, dx: 0, dy: 0 };
+const rightTouch    = { active: false, id: -1, x: 0, y: 0 };
+let   rightZoneTap  = false;
+let   actionPressed = false;
+
 window.addEventListener('keydown', e => {
     keys[e.code] = true;
     if (['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)) e.preventDefault();
@@ -90,6 +98,66 @@ canvas.addEventListener('click', e => {
         if (ox >= mx && ox <= mx + cw && oy >= cy && oy <= cy + ch) startWithDifficulty('master');
     }
 });
+
+// ─── Touch input ────────────────────────────────────────────
+canvas.addEventListener('touchstart', e => {
+    if (state === 'playing') e.preventDefault();
+    const r = canvas.getBoundingClientRect();
+    for (const t of e.changedTouches) {
+        const tx = t.clientX - r.left, ty = t.clientY - r.top;
+        if (state !== 'playing') { mouse.x = tx; mouse.y = ty; continue; }
+
+        const btnX = W - 55, btnY = H - BOT - 55, btnR = 32;
+        if ((tx - btnX)**2 + (ty - btnY)**2 <= btnR * btnR) {
+            actionPressed = true; continue;
+        }
+        if (tx < W * 0.48 && !leftStick.active) {
+            leftStick.active = true; leftStick.id = t.identifier;
+            leftStick.baseX = tx; leftStick.baseY = ty;
+            leftStick.dx = 0; leftStick.dy = 0;
+            continue;
+        }
+        if (tx >= W * 0.48 && !rightTouch.active) {
+            rightTouch.active = true; rightTouch.id = t.identifier;
+            rightTouch.x = tx; rightTouch.y = ty;
+            if (playerRole === 'dino') rightZoneTap = true;
+        }
+    }
+}, { passive: false });
+
+canvas.addEventListener('touchmove', e => {
+    if (state === 'playing') e.preventDefault();
+    const r = canvas.getBoundingClientRect();
+    for (const t of e.changedTouches) {
+        const tx = t.clientX - r.left, ty = t.clientY - r.top;
+        if (state !== 'playing') { mouse.x = tx; mouse.y = ty; continue; }
+        if (t.identifier === leftStick.id) {
+            const RAD = 55;
+            let dx = tx - leftStick.baseX, dy = ty - leftStick.baseY;
+            const len = Math.hypot(dx, dy);
+            if (len > RAD) { dx = dx / len * RAD; dy = dy / len * RAD; }
+            leftStick.dx = dx; leftStick.dy = dy;
+        }
+        if (t.identifier === rightTouch.id) {
+            rightTouch.x = tx; rightTouch.y = ty;
+        }
+    }
+}, { passive: false });
+
+function endTouch(e) {
+    if (state === 'playing') e.preventDefault();
+    for (const t of e.changedTouches) {
+        if (t.identifier === leftStick.id) {
+            leftStick.active = false; leftStick.id = -1;
+            leftStick.dx = 0; leftStick.dy = 0;
+        }
+        if (t.identifier === rightTouch.id) {
+            rightTouch.active = false; rightTouch.id = -1;
+        }
+    }
+}
+canvas.addEventListener('touchend',    endTouch, { passive: false });
+canvas.addEventListener('touchcancel', endTouch, { passive: false });
 
 function selectLayout() {
     const cw = W * 0.30, ch = H * 0.56;
@@ -825,7 +893,7 @@ function drawHUD() {
         ctx.textAlign = 'center';
         ctx.fillText(full ? '⚡ RAGE READY  [Q] to charge' : `RAGE  ${Math.floor(rr*100)}%`, W/2, gy - 3);
         ctx.fillStyle = 'rgba(150,200,120,0.4)';
-        ctx.fillText('[SPACE] bite · [WASD] move', W/2, H - 5);
+        ctx.fillText(isTouchDevice ? 'L-stick move · tap R = bite · ⚡ rage' : '[SPACE] bite · [WASD] move', W/2, H - 5);
     } else {
         const cdRatio = player.empCd > 0 ? 1 - player.empCd/180 : 1;
         ctx.fillStyle = 'rgba(0,0,0,0.5)';
@@ -844,7 +912,7 @@ function drawHUD() {
         ctx.textAlign = 'center';
         ctx.fillText(`${empText}  ·  Charges: ${player.empCharges}  [Q]`, W/2, gy - 3);
         ctx.fillStyle = 'rgba(180,140,120,0.4)';
-        ctx.fillText('[CLICK] shoot · [WASD] move', W/2, H - 5);
+        ctx.fillText(isTouchDevice ? 'L-stick move · hold R = shoot · EMP' : '[CLICK] shoot · [WASD] move', W/2, H - 5);
     }
 
     // Difficulty badge (below timer)
@@ -1113,6 +1181,9 @@ function drawGameOver() {
 
 // ─── Game Init / State transitions ────────────────────────────
 function initGame() {
+    leftStick.active = false; leftStick.id = -1; leftStick.dx = 0; leftStick.dy = 0;
+    rightTouch.active = false; rightTouch.id = -1;
+    rightZoneTap = false; actionPressed = false;
     rebuildCover();
     if (playerRole === 'dino') {
         player = makeDino(W * 0.22, H * 0.5, true);
@@ -1138,6 +1209,35 @@ function startWithDifficulty(level) {
     initGame();
 }
 
+// ─── Touch → keys/mouse mapping ─────────────────────────────
+function applyTouchInput() {
+    if (!isTouchDevice) return;
+    const RAD = 55, threshold = 0.25;
+
+    keys['KeyW'] = leftStick.active && leftStick.dy / RAD < -threshold;
+    keys['KeyS'] = leftStick.active && leftStick.dy / RAD >  threshold;
+    keys['KeyA'] = leftStick.active && leftStick.dx / RAD < -threshold;
+    keys['KeyD'] = leftStick.active && leftStick.dx / RAD >  threshold;
+
+    if (rightTouch.active) {
+        mouse.x = rightTouch.x; mouse.y = rightTouch.y; mouse.held = true;
+    } else {
+        mouse.held = false;
+    }
+
+    if (rightZoneTap) {
+        keys['Space'] = true; rightZoneTap = false;
+    } else {
+        keys['Space'] = false;
+    }
+
+    if (actionPressed) {
+        keys['KeyQ'] = true; actionPressed = false;
+    } else {
+        keys['KeyQ'] = false;
+    }
+}
+
 // ─── Main Loop ───────────────────────────────────────────────
 function update() {
     frame++;
@@ -1145,6 +1245,7 @@ function update() {
 
     if (state !== 'playing') { clickThisFrame = false; return; }
 
+    applyTouchInput();
     gameTimer++;
     if (gameTimer >= GAME_FRAMES) {
         const pr = player.hp / player.maxHp;
@@ -1169,6 +1270,53 @@ function update() {
     clickThisFrame = false;
 }
 
+function drawMobileControls() {
+    ctx.save();
+
+    // Left joystick — ghost ring at default position, floating when active
+    const jx = leftStick.active ? leftStick.baseX : W * 0.18;
+    const jy = leftStick.active ? leftStick.baseY : H - BOT - 60;
+    ctx.globalAlpha = leftStick.active ? 0.4 : 0.14;
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(jx, jy, 45, 0, Math.PI * 2); ctx.stroke();
+
+    if (leftStick.active) {
+        ctx.globalAlpha = 0.55;
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.arc(jx + leftStick.dx, jy + leftStick.dy, 22, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    // Action button
+    const btnX = W - 55, btnY = H - BOT - 55, btnR = 32;
+    const canAct = playerRole === 'hunter'
+        ? (player.empCd === 0 && player.empCharges > 0)
+        : (player.rage >= player.maxRage && player.rageCd === 0);
+    const btnLabel = playerRole === 'dino' ? '⚡' : 'EMP';
+    const btnCol   = playerRole === 'dino' ? '#39ff14' : '#00cfff';
+
+    ctx.globalAlpha = canAct ? 0.75 : 0.2;
+    ctx.strokeStyle = btnCol;
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(btnX, btnY, btnR, 0, Math.PI * 2); ctx.stroke();
+    ctx.fillStyle = btnCol;
+    ctx.font = `bold ${Math.floor(btnR * 0.58)}px monospace`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(btnLabel, btnX, btnY);
+
+    // Dino: faint right-zone tap hint
+    if (playerRole === 'dino') {
+        ctx.globalAlpha = 0.08;
+        ctx.fillStyle = '#39ff14';
+        ctx.fillRect(W * 0.48, TOP, W * 0.52 - 90, H - TOP - BOT);
+    }
+
+    ctx.restore();
+}
+
 function draw() {
     if (screenShake > 1) {
         ctx.save();
@@ -1187,6 +1335,7 @@ function draw() {
         if (playerRole === 'dino') { drawDino(player); drawHunter(enemy); }
         else                       { drawHunter(player); drawDino(enemy); }
         drawHUD();
+        if (isTouchDevice) drawMobileControls();
     }
 
     if (screenShake > 1) ctx.restore();
