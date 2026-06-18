@@ -390,6 +390,20 @@
           </div>
         </a>
 
+        <a class="game-card" href="./dinos-vs-hunters/" data-game="dvh">
+          <div class="thumb">
+            <canvas data-placeholder="dvh"></canvas>
+            <div class="thumb-overlay">
+              <div class="play-btn"><div class="play-triangle"></div></div>
+              <span class="thumb-play-label">Play</span>
+            </div>
+          </div>
+          <div class="card-info">
+            <p class="card-num">Game 03</p>
+            <p class="card-title">Dinos vs Hunters</p>
+          </div>
+        </a>
+
         <!-- Coming soon slot -->
         <div class="card-soon">
           <div class="soon-egg">🥚</div>
@@ -633,12 +647,85 @@
       ctx.fillRect(0, 0, W, H);
     }
 
+    function drawDvhScene(canvas) {
+      const W = canvas.offsetWidth  || canvas.parentElement.offsetWidth  || 320;
+      const H = canvas.offsetHeight || canvas.parentElement.offsetHeight || 180;
+      canvas.width  = W;
+      canvas.height = H;
+      const ctx = canvas.getContext('2d');
+
+      // Dark bg
+      ctx.fillStyle = '#04060f';
+      ctx.fillRect(0, 0, W, H);
+
+      // Neon grid
+      ctx.strokeStyle = 'rgba(0,255,160,0.07)';
+      ctx.lineWidth = 0.5;
+      const g = Math.floor(W / 14);
+      for (let x = 0; x <= W; x += g) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,H); ctx.stroke(); }
+      for (let y = 0; y <= H; y += g) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+
+      // Cover blocks
+      const blocks = [[0.18,0.28,60,32],[0.62,0.22,55,30],[0.40,0.60,50,36],[0.78,0.52,44,44]];
+      blocks.forEach(([fx,fy,bw,bh]) => {
+        const bx = W*fx - bw/2, by = H*fy - bh/2;
+        ctx.fillStyle = '#090c1a';
+        ctx.fillRect(bx, by, bw, bh);
+        ctx.strokeStyle = 'rgba(0,210,255,0.55)';
+        ctx.lineWidth = 1;
+        ctx.strokeRect(bx, by, bw, bh);
+        ctx.fillStyle = 'rgba(0,210,255,0.08)';
+        ctx.fillRect(bx, by, bw, 2);
+      });
+
+      // Dino (left) — stylised T-Rex silhouette
+      const dr = H * 0.16;
+      const dx = W * 0.22, dy = H * 0.55;
+      ctx.shadowColor = '#39ff14'; ctx.shadowBlur = 14;
+      ctx.fillStyle = '#3ba018';
+      ctx.beginPath(); ctx.ellipse(dx, dy, dr*1.2, dr*0.88, 0, 0, Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(dx+dr*1.0, dy-dr*0.52, dr*0.74, dr*0.54, 0.28, 0, Math.PI*2); ctx.fill();
+      ctx.strokeStyle = '#3ba018'; ctx.lineWidth = dr*0.38; ctx.lineCap = 'round';
+      ctx.beginPath(); ctx.moveTo(dx-dr*0.95, dy+dr*0.08); ctx.quadraticCurveTo(dx-dr*1.6, dy+dr*0.42, dx-dr*1.95, dy); ctx.stroke();
+      ctx.shadowBlur = 0;
+
+      // Hunter (right) — armored silhouette
+      const hr = H * 0.12;
+      const hx = W * 0.76, hy = H * 0.52;
+      ctx.shadowColor = '#ff4500'; ctx.shadowBlur = 12;
+      ctx.fillStyle = '#0e1020';
+      ctx.fillRect(hx-hr*0.58, hy-hr*0.38, hr*1.16, hr*0.9);
+      ctx.beginPath(); ctx.arc(hx, hy-hr*0.66, hr*0.44, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = '#cc2a00';
+      ctx.fillRect(hx-hr*0.52, hy-hr*0.34, hr*1.04, hr*0.18);
+      ctx.fillStyle = '#ff5a20';
+      ctx.fillRect(hx-hr*0.3, hy-hr*0.78, hr*0.6, hr*0.24);
+      // Rifle
+      ctx.fillStyle = '#6a6a7a';
+      ctx.fillRect(hx-hr*0.1, hy-hr*0.12, hr*1.5, hr*0.2);
+      ctx.shadowBlur = 0;
+
+      // VS text
+      ctx.font = `bold ${Math.floor(H*0.18)}px monospace`;
+      ctx.textAlign = 'center';
+      ctx.fillStyle = 'rgba(200,220,255,0.18)';
+      ctx.fillText('VS', W*0.5, H*0.6);
+
+      // Vignette
+      const vig = ctx.createRadialGradient(W/2, H/2, H*0.12, W/2, H/2, H*0.82);
+      vig.addColorStop(0, 'rgba(0,0,0,0)');
+      vig.addColorStop(1, 'rgba(0,0,0,0.62)');
+      ctx.fillStyle = vig;
+      ctx.fillRect(0, 0, W, H);
+    }
+
     // Dispatch the right drawing function based on data-placeholder value.
     // Add new cases here as you add new games with custom placeholder art.
     function renderPlaceholder(canvas) {
       const type = canvas.dataset.placeholder;
       if (type === 'trex') drawTRexScene(canvas);
       if (type === 'jaws') drawJawsScene(canvas);
+      if (type === 'dvh')  drawDvhScene(canvas);
     }
 
     // Render all placeholder canvases once fonts + layout are ready
